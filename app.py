@@ -4,6 +4,8 @@ import joblib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import plotly.express as px
+import plotly.graph_objects as go
 
 # --- CONFIG ---
 st.set_page_config(
@@ -117,7 +119,7 @@ df_raw["risk"] = model.predict_proba(df_raw[feats])[:, 1]
 with st.sidebar:
     st.markdown("<div style='padding: 20px 0; border-bottom: 1px solid #1e293b;'><h2 style='color: white; font-weight: 800; margin:0;'>🛡️ ChurnGuard</h2></div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
-    nav = st.radio("ANALYTICS ENGINE", ["📊 Dashboard", "👤 Intelligence", "🧪 Simulator", "📂 Batch Proc", "⚙️ Audit"], label_visibility="collapsed")
+    nav = st.radio("ANALYTICS ENGINE", ["📊 Dashboard", "💰 Sales Hub", "👤 Intelligence", "🧪 Simulator", "📂 Batch Proc", "⚙️ Audit"], label_visibility="collapsed")
     st.markdown("<br><br>", unsafe_allow_html=True)
     st.caption("v4.5 Stable Core")
 
@@ -203,6 +205,62 @@ elif nav == "📂 Batch Proc":
         X_b = df_b.reindex(columns=feats, fill_value=0).apply(pd.to_numeric, errors='coerce').fillna(0)
         df_b["Risk"] = model.predict_proba(X_b)[:, 1]
         st.dataframe(df_b.sort_values("Risk", ascending=False), use_container_width=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+
+elif nav == "💰 Sales Hub":
+    # Sales KPI Row
+    s1, s2, s3, s4 = st.columns(4)
+    total_rev = df_raw["TotalCharges"].sum()
+    mrr = df_raw["MonthlyCharges"].sum()
+    arpu = df_raw["MonthlyCharges"].mean()
+    risk_rev = df_raw[df_raw["risk"] > 0.6]["MonthlyCharges"].sum()
+
+    with s1:
+        st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+        st.metric("LIFETIME REV", f"${total_rev/1e6:.2f}M")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with s2:
+        st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+        st.metric("MONTHLY REV", f"${mrr/1000:.1f}K")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with s3:
+        st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+        st.metric("REV AT RISK", f"${risk_rev/1000:.1f}K", delta=f"-{(risk_rev/mrr):.1%}", delta_color="inverse")
+        st.markdown("</div>", unsafe_allow_html=True)
+    with s4:
+        st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+        st.metric("AVG ARPU", f"${arpu:.2f}")
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    # Power BI Charts
+    p1, p2 = st.columns([1, 1])
+    with p1:
+        st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+        st.markdown("<h4 style='font-weight:700; margin-bottom:10px;'>Revenue by Contract Type</h4>", unsafe_allow_html=True)
+        rev_con = df_raw.groupby("Contract")["MonthlyCharges"].sum().reset_index()
+        fig_rev = px.pie(rev_con, values="MonthlyCharges", names="Contract", 
+                         hole=0.5, color_discrete_sequence=px.colors.sequential.Tealgrn)
+        fig_rev.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300, showlegend=True)
+        st.plotly_chart(fig_rev, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+    
+    with p2:
+        st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+        st.markdown("<h4 style='font-weight:700; margin-bottom:10px;'>Billing Distribution (Density)</h4>", unsafe_allow_html=True)
+        fig_dens = px.histogram(df_raw, x="MonthlyCharges", color="Churn_Yes", 
+                                marginal="box", opacity=0.7, barmode="overlay",
+                                color_discrete_map={"No": "#008080", "Yes": "#FF4B4B"})
+        fig_dens.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300, showlegend=False)
+        st.plotly_chart(fig_dens, use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<div class='analytics-card'>", unsafe_allow_html=True)
+    st.markdown("<h4 style='font-weight:700; margin-bottom:10px;'>Revenue Trend vs Tenure</h4>", unsafe_allow_html=True)
+    trend_df = df_raw.groupby("tenure")["MonthlyCharges"].sum().reset_index()
+    fig_trend = px.area(trend_df, x="tenure", y="MonthlyCharges", 
+                        line_shape="spline", color_discrete_sequence=["#008080"])
+    fig_trend.update_layout(margin=dict(t=10, b=10, l=10, r=10), height=300)
+    st.plotly_chart(fig_trend, use_container_width=True)
     st.markdown("</div>", unsafe_allow_html=True)
 
 elif nav == "⚙️ Audit":
